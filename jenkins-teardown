@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Step 1 : Stopping all the containers
+echo -e "\n\n >> Stopping all the Jenkins containers"
+sudo docker stop $(sudo docker ps -aq)
+
+# Step 2: Removing all the containers
+echo -e "\n\n >> Removing all the Jenkins containers"
+sudo docker rm -f $(sudo docker ps -a -q)
+
+# Step 3: Remove SSH keys
+echo -e "\n\n >> Deleting SSH keys..."
+sudo rm -f ~/.ssh/jenkins_agent_key
+sudo rm -f ~/.ssh/jenkins_agent_key.pub
+
+# Get Jenkins volume and network names from user
+read -p "Enter the name of the Jenkins volume to remove [jenkins-volume]: " jenkins_volume
+jenkins_volume=${jenkins_volume:-jenkins-volume}
+
+read -p "Enter the name of the Jenkins network to remove [jenkins-network]: " jenkins_network
+jenkins_network=${jenkins_network:-jenkins-network}
+
+# Step 4: Remove Jenkins volume
+#echo -e "\n\n >> Removing Jenkins volume..."
+#sudo docker volume rm $jenkins_volume
+echo -e "\n\nCurrent Jenkins volume after deleting $jenkins_volume"
+sudo docker volume ls -q | xargs -r sudo docker volume rm 
+
+# Step 5: Remove Jenkins network
+#echo -e "\n\n >> Removing Jenkins network..."
+#sudo docker network rm $jenkins_network
+echo -e "\n\nCurrent Jenkins network after deleting $jenkins_network"
+sudo docker network ls -q | xargs -r sudo docker network rm

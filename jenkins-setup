@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Step 1: Lunching the jenkins master and agent set up
+echo -e "\n\n >> Lunching the jenkins master and agent set up."
+
+# Step 2: Generate SSH keys
+echo -e "\n\n >> Generating SSH keys..."
+ssh-keygen -f ~/.ssh/jenkins_agent_key
+
+# Step 3: Read the generated public key into a variable
+echo -e "\n\n >> Read the generated public key into a variable to lunch the agent later on ..."
+JENKINS_AGENT_SSH_PUBKEY=$(cat ~/.ssh/jenkins_agent_key.pub)
+
+# Step 4: Ask for Jenkins volume name
+echo -e "\n\n >> Creating volume "
+read -p "Enter the name of the Jenkins volume [jenkins-volume]: " jenkins_volume
+jenkins_volume=${jenkins_volume:-jenkins-volume}
+sudo docker volume create $jenkins_volume
+echo "Jenkins volume name set to $jenkins_volume."
+
+# Step 5: Ask for Jenkins network name
+echo -e "\n\n >> Creating network "
+read -p "Enter the name of the Jenkins Network [jenkins-network]: " jenkins_network
+jenkins_network=${jenkins_network:-jenkins-network}
+sudo docker network create $jenkins_network
+echo "Jenkins network name set to $jenkins_network."
+
+# Step 6: Create Jenkins master
+echo -e "\n\n >> Creating Jenkins master..."
+sudo docker run --name jenkins-master --network $jenkins_network -v $jenkins_volume:/var/jenkins_home -p 8080:8080 -p 50000:50000 -d jenkins/jenkins:latest
+sudo docker volume ls
+
+# Step 7: Display Private Key
+echo -e "\n\n >> Displaying the generated private key to use in the Jenkins Credentials..."
+sudo cat ~/.ssh/jenkins_agent_key
+
+# Step 8: Create Jenkins agent
+echo -e "\n\n >> Creating Jenkins agent..."
+sudo docker run -d --rm --name=jenkins-agent -p 22:22 \
+--volume $jenkins_volume:/var/jenkins_home \
+--network $jenkins_network \
+-e "JENKINS_AGENT_SSH_PUBKEY=$JENKINS_AGENT_SSH_PUBKEY" \
+jenkins/ssh-agent:alpine-jdk17
+
+sudo docker volume ls
+
+#cho -e "\n\n >> Fetching the IP address of the Jenkins agent..."
+sleep 3
+jenkins_agent_ip=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' jenkins-agent)
+echo "Jenkins Agent IP address is $jenkins_agent_ip."
+
+# Step 10: Create known_hosts file within Jenkins Master container
+sleep 3
+echo -e "\n\n >> Creating known_hosts file within Jenkins Master container..."
+
+sudo docker exec jenkins-master sh -c "mkdir /var/jenkins_home/.ssh"
+sudo docker exec jenkins-master sh -c "touch /var/jenkins_home/.ssh/known_hosts"
+
+
+# Step 11: Update known_hosts file within Jenkins Master container
+sleep 3
+echo -e "\n\n >> Updating known_hosts within Jenkins Master container..."
+sudo docker exec jenkins-master sh -c "ssh-keyscan -H $jenkins_agent_ip | tee -a /var/jenkins_home/.ssh/known_hosts"
+
+# Step 12: Display the password for Jenkins UI for the first connection 
+sleep 5
+echo -e "\n\n >> Display the password for Jenkins UI for the first connection ..." 
+sudo docker exec jenkins-master sh -c "cd ~ | cat /var/jenkins_home/secrets/initialAdminPassword" 
